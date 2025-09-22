@@ -37,11 +37,4 @@ connect(URL,Option).then(()=>{
 
 app.use("/api", router);
 
-app.use(express.static('client/dist'));
-
-// Serve React front end for all routes not handled by the API
-app.get(/(.*)/, (req, res) => {
-    res.sendFile(resolve(__dirname, 'client', 'dist', 'index.html'));
-});
-
 export default app;
