@@ -67,16 +67,16 @@ export const bulkCheckIndexing = async (req, res) => {
             indexed: isIndexed,
           });
 
-          // Deduct credit for each URL checked
-          user.credits -= 1;
-          await user.save();
-
           return { url, status: 'Success', indexed: isIndexed };
         } catch (err) {
           return { url, status: 'Failed', message: err.message };
         }
       })
     );
+
+    // Deduct credits only once after all URLs are processed
+    user.credits -= requiredCredits;
+    await user.save();
 
     res.json({
       status: 'Success',
