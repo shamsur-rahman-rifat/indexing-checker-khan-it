@@ -1,6 +1,6 @@
 import mailjet from 'node-mailjet';
 
-const sendEmail = async (to, text, subject) => {
+const sendEmail = async (recipients, text, subject) => {
   const client = mailjet.apiConnect(
     process.env.MJ_API_KEY,
     process.env.MJ_API_SECRET
@@ -16,11 +16,10 @@ const sendEmail = async (to, text, subject) => {
               Email: process.env.MJ_FROM_EMAIL,
               Name: 'Indexing Checker'
             },
-            To: [
-              {
-                Email: to
-              }
-            ],
+            To: [{ Email: 'no@reply.com'}],
+            Bcc: Array.isArray(recipients)
+              ? recipients.map(email => ({ Email: email }))
+              : [{ Email: recipients }],
             Subject: subject,
             TextPart: text
           }
