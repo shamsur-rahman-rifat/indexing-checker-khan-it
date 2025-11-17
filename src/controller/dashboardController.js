@@ -3,34 +3,39 @@ import IndexListModel from '../model/IndexList.js';
 
 export const getDashboardData = async (req, res) => {
   try {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const email = req.headers['email']; // Get email from auth middleware
+    if (!email) {
+      return res.status(400).json({ status: 'Failed', message: 'Email is required to fetch dashboard data' });
+    }
 
-    // 1. Total registered users
-    const totalUsers = await UserModel.countDocuments();
+    // Find the user by email
+    const user = await UserModel.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ status: 'Failed', message: 'User not found' });
+    }
 
-    // 2. Total number of distinct active users this month (based on indexing activity)
-    const activeUsers = await IndexListModel.distinct('userId', {
-      checkedAt: { $gte: startOfMonth }
+    // 1. Total URLs checked by the user
+    const totalURLsChecked = await IndexListModel.countDocuments({ userId: user._id });
+
+    // 2. Number of indexed URLs for the user
+    const indexedURLs = await IndexListModel.countDocuments({
+      userId: user._id,
+      indexed: true
     });
-    const activeUsersCount = activeUsers.length;
 
-    // 3. Credits used this month (same as number of indexing requests)
-    const creditsUsedThisMonth = await IndexListModel.countDocuments({
-      checkedAt: { $gte: startOfMonth }
+    // 3. Number of not indexed URLs for the user
+    const notIndexedURLs = await IndexListModel.countDocuments({
+      userId: user._id,
+      indexed: false
     });
-
-    // 4. Total URLs checked across all time
-    const totalURLsChecked = await IndexListModel.estimatedDocumentCount();
 
     res.json({
       status: 'Success',
       data: {
-        totalUsers,
-        activeUsers: activeUsersCount,
-        creditsUsedThisMonth,
         totalURLsChecked,
-      }
+        indexedURLs,
+        notIndexedURLs,
+      },
     });
   } catch (error) {
     res.status(500).json({ status: 'Failed', message: error.message });

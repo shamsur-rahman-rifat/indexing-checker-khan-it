@@ -45,6 +45,6 @@ router.post('/submitContactForm' , submitContactForm);
 
 //Dashboard Routes
 
-router.get('/getDashboardData', Authentication , checkRole('admin'), getDashboardData);
+router.get('/getDashboardData', Authentication , getDashboardData);
 
 export default router;
