@@ -31,7 +31,7 @@ router.get('/passwordReset/:email/:otp/:password', passwordReset);
 
 //Indexing Routes
 
-router.post('/bulkCheckIndexing' , Authentication, bulkCheckIndexing);
+router.post('/bulkCheckIndexing' , bulkCheckIndexing);
 router.get('/getUserIndexingHistory' , Authentication, getUserIndexingHistory);
 
 //Contact Routes

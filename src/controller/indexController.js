@@ -34,25 +34,35 @@ async function checkIndexingAPI(url) {
 // Bulk check indexing controller
 export const bulkCheckIndexing = async (req, res) => {
   try {
-    const { urls } = req.body;
+    let { urls } = req.body;
     const email = req.headers['email']; // Get email from auth middleware
 
     if (!urls || !Array.isArray(urls) || urls.length === 0) {
       return res.status(400).json({ status: 'Failed', message: 'URLs array is required' });
     }
 
-    const user = await UserModel.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ status: 'Failed', message: 'User not found' });
+    // Limit to 10 URLs for unauthenticated users
+    if (!email) {
+      if (urls.length > 10) {
+        return res.status(400).json({ status: 'Failed', message: 'You can only check a maximum of 10 URLs at a time' });
+      }
     }
 
-    // Check if user has enough credits
-    const requiredCredits = urls.length;
-    if (user.credits < requiredCredits) {
-      return res.status(400).json({
-        status: 'Failed',
-        message: `Not enough credits. You need ${requiredCredits} credits.`,
-      });
+    let user = null;
+    if (email) {
+      user = await UserModel.findOne({ email });
+      if (!user) {
+        return res.status(404).json({ status: 'Failed', message: 'User not found' });
+      }
+
+      // Check if user has enough credits if authenticated
+      const requiredCredits = urls.length;
+      if (user.credits < requiredCredits) {
+        return res.status(400).json({
+          status: 'Failed',
+          message: `Not enough credits. You need ${requiredCredits} credits.`,
+        });
+      }
     }
 
     const results = await Promise.all(
@@ -60,12 +70,15 @@ export const bulkCheckIndexing = async (req, res) => {
         try {
           const isIndexed = await checkIndexingAPI(url);
 
-          await IndexListModel.create({
-            email,
-            userId: user._id,
-            url,
-            indexed: isIndexed,
-          });
+          // Store indexing result if user is authenticated
+          if (user) {
+            await IndexListModel.create({
+              email,
+              userId: user._id,
+              url,
+              indexed: isIndexed,
+            });
+          }
 
           return { url, status: 'Success', indexed: isIndexed };
         } catch (err) {
@@ -74,14 +87,17 @@ export const bulkCheckIndexing = async (req, res) => {
       })
     );
 
-    // Deduct credits only once after all URLs are processed
-    user.credits -= requiredCredits;
-    await user.save();
+    // If user is authenticated, deduct credits
+    if (user) {
+      const requiredCredits = urls.length;
+      user.credits -= requiredCredits;
+      await user.save();
+    }
 
     res.json({
       status: 'Success',
       message: `Checked ${urls.length} URLs`,
-      credits: user.credits,
+      credits: user ? user.credits : null,
       results,
     });
   } catch (error) {
