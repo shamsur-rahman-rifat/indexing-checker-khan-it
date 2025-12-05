@@ -31,7 +31,45 @@ async function checkIndexingAPI(url) {
   }
 }
 
-// Bulk check indexing controller
+// FREE bulk check indexing (up to 10 URLs, no auth required)
+export const freeBulkCheckIndexing = async (req, res) => {
+  try {
+    let { urls } = req.body;
+
+    if (!urls || !Array.isArray(urls) || urls.length === 0) {
+      return res.status(400).json({ status: 'Failed', message: 'URLs array is required' });
+    }
+
+    // Limit to 10 URLs for free users
+    if (urls.length > 10) {
+      return res.status(400).json({ 
+        status: 'Failed', 
+        message: 'Free users can only check a maximum of 10 URLs at a time. Please sign up for more.' 
+      });
+    }
+
+    const results = await Promise.all(
+      urls.map(async (url) => {
+        try {
+          const isIndexed = await checkIndexingAPI(url);
+          return { url, status: 'Success', indexed: isIndexed };
+        } catch (err) {
+          return { url, status: 'Failed', message: err.message };
+        }
+      })
+    );
+
+    res.json({
+      status: 'Success',
+      message: `Checked ${urls.length} URLs (Free check)`,
+      results,
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'Failed', message: error.message });
+  }
+};
+
+// Authenticated bulk check indexing (requires auth, deducts credits)
 export const bulkCheckIndexing = async (req, res) => {
   try {
     let { urls } = req.body;
@@ -41,28 +79,22 @@ export const bulkCheckIndexing = async (req, res) => {
       return res.status(400).json({ status: 'Failed', message: 'URLs array is required' });
     }
 
-    // Limit to 10 URLs for unauthenticated users
     if (!email) {
-      if (urls.length > 10) {
-        return res.status(400).json({ status: 'Failed', message: 'You can only check a maximum of 10 URLs at a time' });
-      }
+      return res.status(401).json({ status: 'Failed', message: 'Authentication required' });
     }
 
-    let user = null;
-    if (email) {
-      user = await UserModel.findOne({ email });
-      if (!user) {
-        return res.status(404).json({ status: 'Failed', message: 'User not found' });
-      }
+    const user = await UserModel.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ status: 'Failed', message: 'User not found' });
+    }
 
-      // Check if user has enough credits if authenticated
-      const requiredCredits = urls.length;
-      if (user.credits < requiredCredits) {
-        return res.status(400).json({
-          status: 'Failed',
-          message: `Not enough credits. You need ${requiredCredits} credits.`,
-        });
-      }
+    // Check if user has enough credits
+    const requiredCredits = urls.length;
+    if (user.credits < requiredCredits) {
+      return res.status(400).json({
+        status: 'Failed',
+        message: `Not enough credits. You need ${requiredCredits} credits but have ${user.credits}.`,
+      });
     }
 
     const results = await Promise.all(
@@ -70,15 +102,13 @@ export const bulkCheckIndexing = async (req, res) => {
         try {
           const isIndexed = await checkIndexingAPI(url);
 
-          // Store indexing result if user is authenticated
-          if (user) {
-            await IndexListModel.create({
-              email,
-              userId: user._id,
-              url,
-              indexed: isIndexed,
-            });
-          }
+          // Store indexing result in database
+          await IndexListModel.create({
+            email,
+            userId: user._id,
+            url,
+            indexed: isIndexed,
+          });
 
           return { url, status: 'Success', indexed: isIndexed };
         } catch (err) {
@@ -87,17 +117,14 @@ export const bulkCheckIndexing = async (req, res) => {
       })
     );
 
-    // If user is authenticated, deduct credits
-    if (user) {
-      const requiredCredits = urls.length;
-      user.credits -= requiredCredits;
-      await user.save();
-    }
+    // Deduct credits
+    user.credits -= requiredCredits;
+    await user.save();
 
     res.json({
       status: 'Success',
       message: `Checked ${urls.length} URLs`,
-      credits: user ? user.credits : null,
+      credits: user.credits,
       results,
     });
   } catch (error) {

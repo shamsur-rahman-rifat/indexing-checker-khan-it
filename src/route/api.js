@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { registration, login, profileUpdate, profileDelete, profileDetails, viewUserList, verifyEmail, verifyOTP, passwordReset } from '../controller/userController.js'
-import { bulkCheckIndexing, getUserIndexingHistory } from '../controller/indexController.js';
+import { bulkCheckIndexing, getUserIndexingHistory, freeBulkCheckIndexing } from '../controller/indexController.js';
 import { initiatePayment, verifyPayment } from '../controller/paymentController.js';
 import { submitContactForm } from '../controller/contactController.js'
 import { getDashboardData } from '../controller/dashboardController.js'
@@ -31,7 +31,8 @@ router.get('/passwordReset/:email/:otp/:password', passwordReset);
 
 //Indexing Routes
 
-router.post('/bulkCheckIndexing' , bulkCheckIndexing);
+router.post('/freeBulkCheckIndexing' , freeBulkCheckIndexing);
+router.post('/bulkCheckIndexing', Authentication , bulkCheckIndexing);
 router.get('/getUserIndexingHistory' , Authentication, getUserIndexingHistory);
 
 //Contact Routes
